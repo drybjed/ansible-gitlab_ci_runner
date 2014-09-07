@@ -1,6 +1,6 @@
 ## gitlab_ci_runner
 
-[![Travis CI](https://secure.travis-ci.org/debops/ansible-gitlab_ci_runner.png)](http://travis-ci.org/debops/ansible-gitlab_ci_runner) [![test-suite](http://img.shields.io/badge/test--suite-ansible--gitlab__ci__runner-blue.svg)](https://github.com/debops/test-suite/tree/master/ansible-gitlab_ci_runner/) [![Ansible Galaxy](http://img.shields.io/badge/galaxy-debops.gitlab__ci__runner-660198.svg)](https://galaxy.ansible.com/list#/roles/1568)[![Platforms](http://img.shields.io/badge/platforms-debian%20|%20ubuntu-lightgrey.svg)](#)
+[![Travis CI](https://secure.travis-ci.org/debops/ansible-gitlab_ci_runner.png)](http://travis-ci.org/debops/ansible-gitlab_ci_runner) [![test-suite](http://img.shields.io/badge/test--suite-ansible--gitlab__ci__runner-blue.svg)](https://github.com/debops/test-suite/tree/master/ansible-gitlab_ci_runner/) [![Ansible Galaxy](http://img.shields.io/badge/galaxy-debops.gitlab__ci__runner-660198.svg)](https://galaxy.ansible.com/list#/roles/1568) [![Platforms](http://img.shields.io/badge/platforms-debian%20|%20ubuntu-lightgrey.svg)](#)
 
 [GitLab CI Runner](https://github.com/gitlabhq/gitlab-ci-runner) is
 a helper Ruby program which is used by [GitLab
