@@ -24,7 +24,7 @@ and is designed to be easily reinstalled if necessary. You will need
 a GitLab CI instance to use Runners, which can be installed and configured
 using ``debops.gitlab_ci`` role.
 
-.. _GitLab CI Runner:https://github.com/gitlabhq/gitlab-ci-runner/
+.. _GitLab CI Runner: https://github.com/gitlabhq/gitlab-ci-runner/
 .. _GitLab CI: https://about.gitlab.com/gitlab-ci/
 
 Installation
@@ -51,7 +51,12 @@ into your playbook.
 Role dependencies
 ~~~~~~~~~~~~~~~~~
 
-- ``debops.ruby``- ``debops.ansible``- ``debops.postgresql``- ``debops.mysql``- ``debops.nodejs``
+- ``debops.ruby``
+- ``debops.ansible``
+- ``debops.postgresql``
+- ``debops.mysql``
+- ``debops.nodejs``
+
 
 Role variables
 ~~~~~~~~~~~~~~
