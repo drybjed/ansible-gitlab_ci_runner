@@ -1,132 +1,147 @@
 ---
 
-# ---- git clone && git checkout ----
+# ---- GitLab CI Runner code clone and checkout ----
 
 - name: Clone GitLab CI Runner source code
-  git: repo={{ gitlab_ci_runner_source_address + gitlab_ci_runner_source_repository }}
-       dest={{ gitlab_ci_runner_sources + '/' + gitlab_ci_runner_source_repository }}
-       version={{ gitlab_ci_runner_version }}
-       bare=yes update=yes
+  git:
+    repo: '{{ gitlab_ci_runner_git_repo }}'
+    dest: '{{ gitlab_ci_runner_git_dest }}'
+    bare: True
+    update: True
   sudo_user: '{{ gitlab_ci_runner_user }}'
   register: gitlab_ci_runner_register_source
 
-- name: Fail if source changed but auto upgrade is disabled
-  fail: msg="GitLab CI Runner source has changed but auto upgrade is disabled"
-  when: (gitlab_ci_runner_status_installed is defined and gitlab_ci_runner_status_installed) and
-        (gitlab_ci_runner_register_source is defined and gitlab_ci_runner_register_source.changed == True) and
-        (gitlab_ci_runner_auto_upgrade is undefined or (gitlab_ci_runner_auto_ugrade is defined and not gitlab_ci_runner_auto_upgrade))
-
 - name: Check if GitLab CI Runner is checked out
-  stat: path={{ gitlab_ci_runner_home }}/gitlab-ci-runner
+  stat:
+    path: '{{ gitlab_ci_runner_git_checkout }}'
   register: gitlab_ci_runner_register_directory
 
-- name: Create GitLab CI Runner directory
-  file: path={{ gitlab_ci_runner_home }}/gitlab-ci-runner state=directory
-        owner={{ gitlab_ci_runner_user }} group={{ gitlab_ci_runner_group }} mode=0755
-  when: (gitlab_ci_runner_register_source is defined and gitlab_ci_runner_register_source.changed == True) or
-        (gitlab_ci_runner_register_directory is defined and gitlab_ci_runner_register_directory.stat.exists == False)
+- name: Create GitLab CI Runner checkout directory
+  file:
+    path: '{{ gitlab_ci_runner_git_checkout }}'
+    state: 'directory'
+    owner: '{{ gitlab_ci_runner_user }}'
+    group: '{{ gitlab_ci_runner_group }}'
+    mode: '0755'
 
 - name: Prepare GitLab CI Runner worktree
-  template: src=srv/users/gitlab-ci-runner/gitlab-ci-runner/git.j2 dest={{ gitlab_ci_runner_home }}/gitlab-ci-runner/.git
-            owner={{ gitlab_ci_runner_user }} group={{ gitlab_ci_runner_group }} mode=0644
-  when: (gitlab_ci_runner_register_source is defined and gitlab_ci_runner_register_source.changed == True) or
-        (gitlab_ci_runner_register_directory is defined and gitlab_ci_runner_register_directory.stat.exists == False)
+  copy:
+    content: 'gitdir: {{ gitlab_ci_runner_git_dest }}'
+    dest: '{{ gitlab_ci_runner_git_checkout + "/.git" }}'
+    owner: '{{ gitlab_ci_runner_user }}'
+    group: '{{ gitlab_ci_runner_group }}'
+    mode: '0644'
+
+- name: Get commit hash of target checkout
+  shell: GIT_WORK_TREE={{ gitlab_ci_runner_git_checkout }} git rev-parse {{ gitlab_ci_runner_version_map[gitlab_ci_runner_version] }}
+         chdir={{ gitlab_ci_runner_git_dest }}
+  sudo_user: '{{ gitlab_ci_runner_user }}'
+  register: gitlab_ci_runner_register_target_branch
+  changed_when: gitlab_ci_runner_register_target_branch.stdout != gitlab_ci_runner_register_source.before
 
 - include: gitlab_ci_runner_pre_upgrade.yml
-  when: (gitlab_ci_runner_status_installed is defined and gitlab_ci_runner_status_installed) and
-        ((gitlab_ci_runner_status_upgrade is defined and gitlab_ci_runner_status_upgrade) or
-        (gitlab_ci_runner_register_source is defined and gitlab_ci_runner_register_source.changed == True))
+  when: ((ansible_local is defined and ansible_local.gitlab_ci_runner is defined and
+          ansible_local.gitlab_ci_runner.installed is defined and ansible_local.gitlab_ci_runner.installed) and
+         ((gitlab_ci_runner_register_target_branch.stdout != gitlab_ci_runner_register_source.before) or
+         (ansible_local.gitlab_ci_runner.version is defined and ansible_local.gitlab_ci_runner.version != gitlab_ci_runner_version)))
 
 - name: Checkout GitLab CI Runner
-  shell: GIT_WORK_TREE={{ gitlab_ci_runner_home }}/gitlab-ci-runner git checkout -f {{ gitlab_ci_runner_version_map[gitlab_ci_runner_version] }}
-         chdir={{ gitlab_ci_runner_sources + '/' + gitlab_ci_runner_source_repository }}
+  shell: GIT_WORK_TREE={{ gitlab_ci_runner_git_checkout }} git checkout -f {{ gitlab_ci_runner_version_map[gitlab_ci_runner_version] }}
+         chdir={{ gitlab_ci_runner_git_dest }}
   sudo_user: '{{ gitlab_ci_runner_user }}'
   register: gitlab_ci_runner_register_checkout
-  when: (gitlab_ci_runner_register_source is defined and gitlab_ci_runner_register_source.changed == True) or
-        (gitlab_ci_runner_register_directory is defined and gitlab_ci_runner_register_directory.stat.exists == False) or
-        (gitlab_ci_runner_status_upgrade is defined and gitlab_ci_runner_status_upgrade)
+  when: (gitlab_ci_runner_register_source.before is undefined or
+         (gitlab_ci_runner_register_source.before is defined and
+          gitlab_ci_runner_register_target_branch.stdout is defined and
+          gitlab_ci_runner_register_source.before != gitlab_ci_runner_register_target_branch.stdout))
 
 - name: Manage other GitLab CI Runner directories
-  file: path={{ item }} state=directory owner={{ gitlab_ci_runner_user }} group={{ gitlab_ci_runner_group }} mode=0755
-  with_items: [ '{{ gitlab_ci_runner_home }}/gitlab-ci-runner/tmp', '{{ gitlab_ci_runner_home }}/gitlab-ci-runner/tmp/pids',
+  file:
+    path: '{{ item }}'
+    state: 'directory'
+    owner: '{{ gitlab_ci_runner_user }}'
+    group: '{{ gitlab_ci_runner_group }}'
+    mode: '0755'
+  with_items: [ '{{ gitlab_ci_runner_git_checkout + "/tmp" }}',
+                '{{ gitlab_ci_runner_git_checkout + "/tmp/pids" }}',
                 '/var/log/gitlab-ci-runner' ]
 
 
-# ---- /etc/default/gitlab-ci-runner ----
+# ---- GitLab CI Runner configuration files and scripts ----
 
-- name: Configure GitLab CI Runner default configuration
-  template: src=etc/default/gitlab-ci-runner.j2 dest=/etc/default/gitlab-ci-runner
-            owner=root group=root mode=0644
+- name: Setup GitLab CI Runner default configuration
+  template:
+    src: 'etc/default/gitlab-ci-runner.j2'
+    dest: '/etc/default/gitlab-ci-runner'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify: [ 'Restart gitlab-ci-runner' ]
 
-
-# ---- /etc/init.d/gitlab-ci-runner ----
-
 - name: Install GitLab CI Runner service script
-  shell: cp -f {{ gitlab_ci_runner_home }}/gitlab-ci-runner/lib/support/init.d/gitlab_ci_runner /etc/init.d/gitlab-ci-runner
-  when: gitlab_ci_runner_register_checkout is defined and gitlab_ci_runner_register_checkout.changed == True
-
-- name: Make GitLab CI Runner service script executable
-  file: path=/etc/init.d/gitlab-ci-runner state=file owner=root group=root mode=0755
-  when: gitlab_ci_runner_register_checkout is defined and gitlab_ci_runner_register_checkout.changed == True
+  shell: install -T -o root -g root -m 755
+       {{ gitlab_ci_runner_git_checkout }}/lib/support/init.d/gitlab_ci_runner /etc/init.d/gitlab-ci-runner
+  when: gitlab_ci_runner_register_checkout is defined and gitlab_ci_runner_register_checkout.changed
 
 - name: Patch GitLab CI Runner init script to enable defaults support
-  lineinfile: dest=/etc/init.d/gitlab-ci-runner state=present regexp='^test -f /etc/default/gitlab-ci-runner'
-              line='test -f /etc/default/gitlab-ci-runner && . /etc/default/gitlab-ci-runner'
-              insertafter='^INIT_LOG="/var/log/gitlab_ci_runner.log"'
+  lineinfile:
+    dest: '/etc/init.d/gitlab-ci-runner'
+    state: 'present'
+    regexp: '^test -f /etc/default/gitlab-ci-runner'
+    line: 'test -f /etc/default/gitlab-ci-runner && . /etc/default/gitlab-ci-runner'
+    insertafter: '^INIT_LOG="/var/log/gitlab_ci_runner.log"'
 
 - name: Enable GitLab CI Runner service
   shell: insserv gitlab-ci-runner
-  when: gitlab_ci_runner_register_checkout is defined and gitlab_ci_runner_register_checkout.changed == True
+  when: gitlab_ci_runner_register_checkout is defined and gitlab_ci_runner_register_checkout.changed
+
+- name: Setup GitLab CI Runner logrotate configuration
+  template:
+    src: 'etc/logrotate.d/gitlab-ci-runner.j2'
+    dest: '/etc/logrotate.d/gitlab-ci-runner'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
 
 
-# ---- /etc/logrotate.d/gitlab-ci-runner ----
-
-- name: Configure GitLab CI Runner logrotate configuration
-  template: src=etc/logrotate.d/gitlab-ci-runner.j2 dest=/etc/logrotate.d/gitlab-ci-runner
-            owner=root group=root mode=0644
+- include: configure_services.yml
 
 
-# ---- ~/.my.cnf ----
-
-- name: Configure GitLab CI Runner MySQL access if enabled
-  template: src=srv/users/gitlab-ci-runner/my.cnf.j2 dest=~/.my.cnf mode=0640
-  sudo_user: '{{ gitlab_ci_runner_user }}'
-  when: "'mysql' in gitlab_ci_runner_dependencies"
-
-
-# ---- /etc/sudoers.d/gitlab-ci-runner ----
-
-- name: Configure access to root via sudo if enabled
-  template: src=etc/sudoers.d/gitlab-ci-runner.j2 dest=/etc/sudoers.d/gitlab-ci-runner
-            owner=root group=root mode=0440
-  when: gitlab_ci_runner_sudo is defined and gitlab_ci_runner_sudo
-
-
-# ---- Setup ----
+# ---- GitLab CI Runner main etup ----
 
 - name: Update Ruby gems
-  shell: bundle install --deployment chdir={{ gitlab_ci_runner_home }}/gitlab-ci-runner
+  shell: bundle install --deployment chdir={{ gitlab_ci_runner_git_checkout }}
   sudo_user: '{{ gitlab_ci_runner_user }}'
-  when: gitlab_ci_runner_register_checkout is defined and gitlab_ci_runner_register_checkout.changed == True
-
-- name: Start GitLab CI Runner
-  service: name=gitlab-ci-runner state=started
-  when: gitlab_ci_runner_status_installed is undefined
+  notify: [ 'Restart gitlab-ci-runner' ]
+  when: gitlab_ci_runner_register_checkout is defined and gitlab_ci_runner_register_checkout.changed
 
 - name: Register GitLab CI Runner with GitLab CI instance
   shell: CI_SERVER_URL={{ gitlab_ci_runner_url }} REGISTRATION_TOKEN={{ gitlab_ci_runner_token }} bundle exec ./bin/setup
-         chdir={{ gitlab_ci_runner_home }}/gitlab-ci-runner
+         chdir={{ gitlab_ci_runner_git_checkout }}
   sudo_user: '{{ gitlab_ci_runner_user }}'
   register: gitlab_ci_runner_register_instance
   when: ((gitlab_ci_runner_token is defined and gitlab_ci_runner_token) and
-        (gitlab_ci_runner_url is defined and gitlab_ci_runner_url)) and
-        (gitlab_ci_runner_status_installed is undefined or
-        gitlab_ci_runner_status_registered is undefined)
+         (gitlab_ci_runner_url is defined and gitlab_ci_runner_url) and
+         (ansible_local is undefined or (ansible_local is defined and
+          (ansible_local.gitlab_ci_runner is undefined or (ansible_local.gitlab_ci_runner is defined and
+           (ansible_local.gitlab_ci_runner.registered is undefined or (ansible_local.gitlab_ci_runner.registered is defined and
+            not ansible_local.gitlab_ci_runner.registered)))))))
+
+  # Runner won't start normally, no idea why. But restart works too.
+- name: Start GitLab CI Runner
+  service:
+    name: 'gitlab-ci-runner'
+    state: 'restarted'
+  when: (ansible_local is undefined or (ansible_local is defined and
+         (ansible_local.gitlab_ci_runner is undefined or (ansible_local.gitlab_ci_runner is defined and
+          (ansible_local.gitlab_ci_runner.installed is undefined or (ansible_local.gitlab_ci_runner.installed is defined and
+           not ansible_local.gitlab_ci_runner.installed))))))
 
 - name: Install requested packages
-  apt: pkg={{ item }} state=latest install_recommends=no
+  apt:
+    name: '{{ item }}'
+    state: 'latest'
+    install_recommends: False
   with_items: gitlab_ci_runner_packages
   when: gitlab_ci_runner_packages is defined and gitlab_ci_runner_packages
-
 

@@ -1,23 +1,15 @@
 ---
 
-# ---- System configuration ----
-
-# System user, group and home directory
-gitlab_ci_runner_user: 'gitlab-ci-runner'
-gitlab_ci_runner_group: 'gitlab-ci-runner'
-gitlab_ci_runner_home: '/srv/users/gitlab-ci-runner'
-
-
 # ---- GitLab CI Runner source ----
 
-# Directory with GitLab CI Runner source (bare) repositories
-gitlab_ci_runner_sources: '{{ gitlab_ci_runner_home }}/src/gitlab.com/gitlab-org'
+# Address of the official GitLab CI Runner git repository to use
+gitlab_ci_runner_git_repo: 'https://gitlab.com/gitlab-org/gitlab-ci-runner.git'
 
-# Address of the git server to clone GitLab CI Runner repositories from
-gitlab_ci_runner_source_address: 'https://gitlab.com/gitlab-org/'
+# Directory where GitLab CI Runner source will be cloned to
+gitlab_ci_runner_git_dest: '{{ gitlab_ci_runner_home + "/src/" + gitlab_ci_runner_git_repo.split("://")[1] }}'
 
-# GitLab CI Runner repository name
-gitlab_ci_runner_source_repository: 'gitlab-ci-runner.git'
+# Directory where GitLab CI Runner will be checked out (application directory)
+gitlab_ci_runner_git_checkout: '{{ gitlab_ci_runner_home + "/gitlab-ci-runner" }}'
 
 # Mapping of "official" version to git branches of GitLab CI Runner
 gitlab_ci_runner_version_map:
