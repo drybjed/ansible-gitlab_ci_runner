@@ -26,10 +26,6 @@ More information about `debops.gitlab_ci_runner` can be found in the
 ### Role dependencies
 
 - `debops.ruby`
-- `debops.ansible`
-- `debops.postgresql`
-- `debops.mysql`
-- `debops.nodejs`
 
 ### Are you using this as a standalone role without DebOps?
 

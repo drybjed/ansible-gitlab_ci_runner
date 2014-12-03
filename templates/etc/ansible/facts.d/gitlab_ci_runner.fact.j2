@@ -1,9 +1,12 @@
-# This file is managed by Ansible, all changes will be lost
-
-[instance]
-gitlab_ci_runner_version = {{ gitlab_ci_runner_version }}
-ci_runner_version = {{ gitlab_ci_runner_version_map[gitlab_ci_runner_version] }}
-{% if (gitlab_ci_runner_register_instance is defined and gitlab_ci_runner_register_instance.stdout is defined) or (gitlab_ci_runner_status_registered is defined and gitlab_ci_runner_status_registered) %}
-registered = True
+{
+{% if ((ansible_local is defined and ansible_local.gitlab_ci_runner is defined and
+        ansible_local.gitlab_ci_runner.registered is defined and
+        ansible_local.gitlab_ci_runner.registered) or
+       (gitlab_ci_runner_register_instance is defined and
+        gitlab_ci_runner_register_instance.stdout is defined and
+        gitlab_ci_runner_register_instance.stdout)) %}
+"registered": "true",
 {% endif %}
-
+"installed": "true",
+"version": "{{ gitlab_ci_runner_version }}"
+}
