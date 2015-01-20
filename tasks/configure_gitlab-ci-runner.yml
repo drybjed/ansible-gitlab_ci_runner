@@ -92,7 +92,9 @@
     insertafter: '^INIT_LOG="/var/log/gitlab_ci_runner.log"'
 
 - name: Enable GitLab CI Runner service
-  shell: insserv gitlab-ci-runner
+  service:
+    name: 'gitlab-ci-runner'
+    enabled: True
   when: gitlab_ci_runner_register_checkout is defined and gitlab_ci_runner_register_checkout.changed
 
 - name: Setup GitLab CI Runner logrotate configuration
